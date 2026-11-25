@@ -1,114 +1,91 @@
-# TextCalssificationUsingBERT
+# Offensive language and hate speech in Arabic tweets
 
-# Team member 
-####
-1-  محمود رمضان احمد عبده               20180557
-####
-2-  احمد ايهاب محمد محمد                20180024
-####
-3-   كريم عوض مكرم بهجات                20180434
-####
-4-   مصطفي حمدي خليل محمود              20180593
-####
-5-   محمود عبد الرحمن محمد محمود       20180565
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=flat&logo=pytorch&logoColor=white)
+![Transformers](https://img.shields.io/badge/Hugging%20Face-FFD21E?style=flat&logo=huggingface&logoColor=black)
 
+We fine-tuned MARBERT, a BERT model pretrained on Arabic tweets, to catch two things in Arabic Twitter text: offensive language, and the harder case of hate speech. The data comes from the OSACT 2022 shared task on fine-grained hate speech detection.
 
-## Fine-Grained Hate Speech Detection on Arabic Twitter
-Disclaimer: Some examples have offensive language and hate speech!
+This was a team project with four other people, and this repo is a fork of [the original](https://github.com/mahmoudramadan0040/TextCalssificationUsingBERT) by Mahmoud Ramadan. I'm one of the five team members.
 
+## The problem
 
+Moderating online abuse at scale needs automatic classifiers. Arabic makes this harder than English because tweets mix dialects (Egyptian, Gulf, Levantine and more) and the spelling isn't standardised.
 
-Detecting offensive language and hate speech has gained increasing interest from researchers in NLP and computational social sciences communities in the past few years. For example, at the ACL 2021 main conference, there were 3 papers about offensive language and 10 papers about hate speech (https://aclanthology.org/events/acl-2021/). Additionally, there was a dedicated workshop on online abuse and harm with a shared task on hateful memes (https://www.workshopononlineabuse.com/home#h.czplpodomjyq).
+The dataset has about 13,000 tweets, each judged by three annotators. Around 35% are offensive, and only 11% are hate speech. That imbalance is why hate speech is the harder subtask.
 
+| Subtask | Question | Labels |
+|---|---|---|
+| A | Is the tweet offensive? | OFF / NOT_OFF |
+| B | Does it contain hate speech? | HS / NOT_HS |
 
+## What we did
 
-Detecting offensive language and hate speech is very important for online safety, content moderation, etc. Studies show that the presence of hate speech may be connected to hate crimes (Hate Speech Watch, 2014).
+1. **Cleaned the text.** We removed emoji and the label tags that were left in the tweets, then converted the labels to 0 and 1 (`PHASE1(preparing&preprocessing).ipynb`).
+2. **Preprocessed with the AraBERT pipeline** for MARBERT's tokenizer.
+3. **Fine-tuned MARBERT** with a classification head, one model per subtask.
+4. **Evaluated** on 10% of the data held out with a fixed random seed (42).
 
+Training settings for both models: learning rate 5e-5, batch size 32 with gradient accumulation of 5, 4 epochs, max sequence length 266, mixed precision (fp16) on a Colab GPU. We did not tune hyperparameters.
 
+## Results
 
-Given the success of the shared task on Arabic offensive language detection at OSACT 2020 (https://edinburghnlp.inf.ed.ac.uk/workshops/OSACT4/), we decided to continue our effort to enhance the detection of offensive language and hate speech on Arabic Twitter. We share with the research community the largest annotated Arabic tweets without being biased towards specific topics, genres, or dialects. Each tweet is judged by 3 annotators using crowdsourcing for offensiveness. Offensive tweets were classified into one of the hate speech types: Race, Religion, Ideology, Disability, Social Class, and Gender. Also, annotators judged whether a tweet has vulgar language or violence.
+Scores on the held-out 10%, after the final epoch:
 
+| Subtask | Macro F1 | Accuracy |
+|---|---|---|
+| A: Offensive language | **0.880** | 0.880 |
+| B: Hate speech | **0.928** | 0.928 |
 
+Hate speech scored higher than offensive language, even though it's the rarer class. For subtask B the best epoch (the third) reached a macro F1 of 0.934. The final epoch is 0.928. The tables below show every epoch.
 
-Hate speech is defined as any kind of offensive language (insults, slurs, threats, encouraging violence, impolite language, etc.) that targets a person or a group of people based on common characteristics such as race/ethnicity/nationality, religion/belief, ideology, disability/disease, social class, gender, etc.
+<details>
+<summary>Per-epoch scores</summary>
 
+**Subtask A (offensive)**
 
+| Epoch | Validation loss | Macro F1 | Accuracy |
+|---|---|---|---|
+| 1 | 0.332 | 0.866 | 0.866 |
+| 2 | 0.330 | 0.879 | 0.879 |
+| 3 | 0.433 | 0.877 | 0.877 |
+| 4 | 0.509 | 0.880 | 0.880 |
 
-Hate Speech types in our dataset are:
+**Subtask B (hate speech)**
 
-HS1 (race/ethnicity/nationality). خطاب كراهية ضد العِرْق أو دولة معينة أو جنسية الدولة، مثلا: يا زنجي، في بلدك النساء عاهرات
+| Epoch | Validation loss | Macro F1 | Accuracy |
+|---|---|---|---|
+| 1 | 0.351 | 0.859 | 0.860 |
+| 2 | 0.278 | 0.909 | 0.909 |
+| 3 | 0.223 | 0.934 | 0.934 |
+| 4 | 0.252 | 0.928 | 0.928 |
 
-HS2 (religion/belief). خطاب كراهية ضد الدين والمذهب، مثلا: دينك القذر
+</details>
 
-HS3 (ideology). خطاب كراهية ضد الانتماء الحزبي أو الفكري أو الرياضي، مثلا: أبوك شيوعي، ناديك الحقير
+## Caveats
 
-HS4 (disability/disease). خطاب كراهية ضد الإعاقة الجسدية، مثلا: يا معوق، يا قزم
+- **These are not leaderboard scores.** The numbers come from our own 90/10 split of the shared-task data, not from the official OSACT test set, so they can't be compared directly with other teams' results.
+- **We used the held-out split for monitoring and for reporting.** There's no separate test set, so the scores are slightly optimistic.
+- **Validation loss rises in subtask A.** It goes from 0.33 in epoch 2 to 0.51 in epoch 4 while F1 stays flat. That's a sign the model is overfitting, and fewer epochs or early stopping would be better.
+- **Single run.** We trained once with one seed and report no confidence intervals.
 
-HS5 (social class). خطاب كراهية ضد وظيفة أو جزء من المجتمع، مثلا: يا بواب، البدو متخلفين، أصله فلاح لا يفهم
+## How to run
 
-HS6 (gender). خطاب كراهية ضد النوع (ذكر/أنثى)، مثلا: الله يأخذ الرجال، النساء صاروا بلا حياء
+The notebooks were written for Google Colab with a GPU.
 
+1. Download the training and dev data from the [OSACT 2022 task page](https://alt.qcri.org/resources/OSACT2022/) or use the CSV files in this repo.
+2. Open `OFF_NOT_OFF_Model.ipynb` (subtask A) or `HS_NOT_HS_Model.ipynb` (subtask B) in Colab.
+3. Upload the matching CSV, and change the path in the `pd.read_csv` cell if needed.
+4. Run the cells in order. The first cell installs `transformers==4.2.1`, `optuna`, `farasapy`, `pyarabic` and `arabert`, and downloads MARBERT from [Hugging Face](https://huggingface.co/UBC-NLP/MARBERT).
 
+Training takes about 12 minutes for subtask A and 5 minutes for subtask B on a Colab GPU.
 
-The corpus contains ~13K tweets in total: 35% are offensive and 11% are hate speech. Vulgar and violent tweets represent 1.5% and 0.7% of the whole corpus.
+## What I'd like to do next
 
+Look inside the model: which words push a tweet towards "offensive", whether those explanations hold up on different dialects, and whether they stay stable when the text is noisy.
 
+## Credits
 
-Percentages of offensive language and hate speech in the corpus are the highest among other corpora without using pre-specified keywords or selecting a specific domain.
-
-
-
-After the competitions ended, details about the dataset were announced at: https://arxiv.org/pdf/2201.06723.pdf
-
-
-
-We will have 3 shared subtasks:
-
-
-
-Subtask A: Detect whether a tweet is offensive or not.
-
-Labels for this task are: OFF (Offensive) or NOT_OFF (Not Offensive)
-
-Example: الله يلعنه على هالسؤال (May God curse him for this question! )
-
-
-
-Subtask B: Detect whether a tweet has hate speech or not.
-
-Labels are: HS (Hate Speech) or NOT_HS (Not Hate Speech).
-
-Subtask B is more challenging than Subtask A as 11% only of the tweets are labeled as hate speech.
-
-Example: أنتم شعب متخلف (You are a retarded people)
-
-
-
-## Dataset
-Download training data from: https://alt.qcri.org/resources/OSACT2022/OSACT2022-sharedTask-train.txt
-
-Download development data from: https://alt.qcri.org/resources/OSACT2022/OSACT2022-sharedTask-dev.txt
-
-## Preprocessing 
-we clean data set from any emotions and any labels like HS/NotHs tags and other tags 
-##
-We convert HS/Not HS to 0/1 number in dataset labels
-##
-We convert OFF/Not OFF tags to 0/1 number in dataset labels 
-##
-you can find the Preprocessing File in 
-## Model 
-we used MaraBert and is Deep Bidirectional Transofrmers For Arabic  from HuggingFace 
-> https://huggingface.co/UBC-NLP/MARBERT
-**MARBERT** is one of three models described in our **ACL 2021 paper** 
-![Arabic-BERT-model-architecture](https://user-images.githubusercontent.com/95087747/168382695-77575676-ac0b-405b-abdd-84cc59dfcf32.png)
-## Preformance Evaluation 
-### Evaluate Task A
-![FinalOFF](https://user-images.githubusercontent.com/95087747/168401678-ad7ada22-f1bc-4cc6-8263-ff4c2ffe748d.PNG)
-
-F1-score of Task A 88%
-
-### Evaluate Task B 
-![FinalHS](https://user-images.githubusercontent.com/95087747/168401713-cbbdcd3a-a1fe-45f2-a6e7-a7f2d722faa1.PNG)
-
-F1-score of Task B 92%
+- The shared task data is from [OSACT 2022](https://arxiv.org/pdf/2201.06723.pdf).
+- The model is [MARBERT](https://huggingface.co/UBC-NLP/MARBERT), from the paper *ARBERT & MARBERT: Deep Bidirectional Transformers for Arabic* (ACL 2021).
+- The tweets include offensive language, so be aware of that when you open the data.
